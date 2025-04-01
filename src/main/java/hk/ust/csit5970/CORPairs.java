@@ -193,8 +193,7 @@ public static class CORPairsReducer2 extends Reducer<PairOfStrings, IntWritable,
 			double freqA = word_total_map.get(word1);
 			double freqB = word_total_map.get(word2);
 	
-			// 计算 COR(A, B)
-			double correlation = pairCount / (freqA * freqB);
+			double correlation = (double)pairCount / (freqA * freqB);
 			context.write(key, new DoubleWritable(correlation));
 		}
 	}

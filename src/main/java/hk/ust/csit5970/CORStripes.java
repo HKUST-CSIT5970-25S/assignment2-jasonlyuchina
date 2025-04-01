@@ -98,6 +98,16 @@ public class CORStripes extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			List<String> sortedWords = new ArrayList<String>(sorted_word_set);
+			for (int i = 0; i < sortedWords.size(); i++) {
+				String word = sortedWords.get(i);
+				MapWritable stripe = new MapWritable();
+				for (int j = i+1; j < sortedWords.size(); j++) {
+						Text neighbor = new Text(sortedWords.get(j));
+						stripe.put(neighbor, new IntWritable(1));
+				}
+				context.write(new Text(word), stripe);
+			}
 		}
 	}
 
@@ -112,6 +122,21 @@ public class CORStripes extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			MapWritable combinedStripe = new MapWritable();
+
+			for (MapWritable value : values) {
+				for (Writable neighbor : value.keySet()) {
+					IntWritable currentCount;
+					if (combinedStripe.containsKey(neighbor)) {
+						currentCount = (IntWritable) combinedStripe.get(neighbor);
+						currentCount.set(currentCount.get() + ((IntWritable) value.get(neighbor)).get());
+					} else {
+						currentCount = new IntWritable(((IntWritable) value.get(neighbor)).get());
+					}
+					combinedStripe.put(neighbor, currentCount);
+				}
+			}
+			context.write(key, combinedStripe);
 		}
 	}
 
@@ -165,6 +190,27 @@ public class CORStripes extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			MapWritable combinedStripe = new MapWritable();
+			for (MapWritable value : values) {
+				for (Writable neighbor : value.keySet()) {
+					IntWritable currentCount;
+					if (combinedStripe.containsKey(neighbor)) {
+						currentCount = (IntWritable) combinedStripe.get(neighbor);
+						currentCount.set(currentCount.get() + ((IntWritable) value.get(neighbor)).get());
+					} else {
+						currentCount = new IntWritable(((IntWritable) value.get(neighbor)).get());
+					}
+					combinedStripe.put(neighbor, currentCount);
+				}
+			}
+			for (Writable neighbor : combinedStripe.keySet()) {
+				String neighborWord = neighbor.toString();
+				int freqAB = ((IntWritable) combinedStripe.get(neighbor)).get();
+				int freqA = word_total_map.get(key.toString());
+				int freqB = word_total_map.get(neighborWord);
+				double correlation = (double) freqAB / (freqA * freqB);
+				context.write(new PairOfStrings(key.toString(), neighborWord), new DoubleWritable(correlation));
+			}
 		}
 	}
 
