@@ -31,7 +31,7 @@ import java.util.*;
  */
 public class CORStripes extends Configured implements Tool {
 	private static final Logger LOG = Logger.getLogger(CORStripes.class);
-
+	private final static IntWritable count = new IntWritable();
 	/*
 	 * TODO: write your first-pass Mapper here.
 	 */

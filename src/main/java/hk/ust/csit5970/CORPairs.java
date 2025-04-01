@@ -73,7 +73,7 @@ public class CORPairs extends Configured implements Tool {
 		@Override
 		public void reduce(Text key, Iterable<IntWritable> values, Context context)
 				throws IOException, InterruptedException {
-				/*
+			/*
 			 * TODO: Your implementation goes here.
 			 */
 			int sum = 0;
@@ -84,9 +84,9 @@ public class CORPairs extends Configured implements Tool {
 		}
 	}
 
-/*
- * TODO: Write your second-pass Mapper here.
- */
+	/*
+	 * TODO: Write your second-pass Mapper here.
+	 */
 public static class CORPairsMapper2 extends Mapper<LongWritable, Text, PairOfStrings, IntWritable> {
 	@Override
 	protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
@@ -95,6 +95,19 @@ public static class CORPairsMapper2 extends Mapper<LongWritable, Text, PairOfStr
 		/*
 		 * TODO: Your implementation goes here.
 		 */
+		Set<String> uniqueWords = new HashSet<String>();
+        while (doc_tokenizer.hasMoreTokens()) {
+            uniqueWords.add(doc_tokenizer.nextToken());
+        }
+        List<String> sortedWords = new ArrayList<String>(uniqueWords);
+        Collections.sort(sortedWords);
+        for (int i = 0; i < sortedWords.size(); i++) {
+            for (int j = i + 1; j < sortedWords.size(); j++) {
+                String word1 = sortedWords.get(i);
+                String word2 = sortedWords.get(j);
+                context.write(new PairOfStrings(word1, word2), new IntWritable(1));
+            }
+		}
 	}
 }
 
@@ -108,6 +121,12 @@ private static class CORPairsCombiner2 extends Reducer<PairOfStrings, IntWritabl
 		/*
 		 * TODO: Your implementation goes here.
 		 */
+		int sum=0;
+		for (IntWritable value : values) {
+			sum += value.get();
+		}
+	
+		context.write(key, new IntWritable(sum));
 	}
 }
 
@@ -162,6 +181,22 @@ public static class CORPairsReducer2 extends Reducer<PairOfStrings, IntWritable,
 		/*
 		 * TODO: Your implementation goes here.
 		 */
+		 int pairCount = 0;
+		 for (IntWritable value : values) {
+			pairCount += value.get();
+		}
+	
+		String word1 = key.getLeftElement();
+		String word2 = key.getRightElement();
+	
+		if (word_total_map.containsKey(word1) && word_total_map.containsKey(word2)) {
+			double freqA = word_total_map.get(word1);
+			double freqB = word_total_map.get(word2);
+	
+			// 计算 COR(A, B)
+			double correlation = pairCount / (freqA * freqB);
+			context.write(key, new DoubleWritable(correlation));
+		}
 	}
 }
 
