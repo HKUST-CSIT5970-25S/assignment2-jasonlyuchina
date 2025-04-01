@@ -19,6 +19,7 @@ import org.apache.hadoop.io.FloatWritable;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapred.TestMiniMRClientCluster.MyReducer;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
@@ -54,6 +55,16 @@ public class BigramFrequencyStripes extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			for (int i = 0; i < words.length - 1; i++) {
+                STRIPE.clear();
+                STRIPE.increment(words[i + 1]);
+                KEY.set(words[i]);
+                context.write(KEY, STRIPE);
+
+                STRIPE.clear();
+                STRIPE.increment("");
+                context.write(KEY, STRIPE);
+            }
 		}
 	}
 
@@ -75,6 +86,25 @@ public class BigramFrequencyStripes extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			SUM_STRIPES.clear();
+			 int totalCount = 0;
+            for (HashMapStringIntWritable stripe : stripes) {
+                SUM_STRIPES.plus(stripe);
+            }
+            totalCount = SUM_STRIPES.get("");
+            for (Map.Entry<String, Integer> entry : SUM_STRIPES.entrySet()) {
+                String rightWord = entry.getKey();
+                if (!rightWord.equals("")) {
+                    BIGRAM.set(key.toString(), rightWord);
+                    FREQ.set((float) entry.getValue() / totalCount);
+                    context.write(BIGRAM, FREQ);
+                }
+				else {
+					BIGRAM.set(key.toString(), rightWord);
+					FREQ.set((float) entry.getValue());
+					context.write(BIGRAM, FREQ);
+				}
+            }
 		}
 	}
 
@@ -94,6 +124,11 @@ public class BigramFrequencyStripes extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			SUM_STRIPES.clear();
+            for (HashMapStringIntWritable stripe : stripes) {
+                SUM_STRIPES.plus(stripe);
+            }
+            context.write(key, SUM_STRIPES);
 		}
 	}
 
