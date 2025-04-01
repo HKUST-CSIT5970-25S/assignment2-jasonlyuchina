@@ -5,10 +5,6 @@ import org.apache.commons.cli.Options;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.*;
-import org.apache.hadoop.io.FloatWritable;
-import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.LongWritable;
-import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Partitioner;
@@ -19,18 +15,16 @@ import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.log4j.Logger;
 
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.*;
+import hk.ust.csit5970.CORPairs.CORPairsMapper2;
+import hk.ust.csit5970.CORPairs.CORPairsReducer2;
 
+import org.apache.hadoop.io.*;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.util.*;
-import java.util.Arrays;
-import java.util.HashMap;
 
 /**
  * Compute the bigram count using "pairs" approach
@@ -43,6 +37,8 @@ public class CORPairs extends Configured implements Tool {
 	 */
 	private static class CORMapper1 extends
 			Mapper<LongWritable, Text, Text, IntWritable> {
+		private final static IntWritable count = new IntWritable();
+
 		@Override
 		public void map(LongWritable key, Text value, Context context)
 				throws IOException, InterruptedException {
@@ -53,6 +49,19 @@ public class CORPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			while (doc_tokenizer.hasMoreTokens()) {
+				String word = doc_tokenizer.nextToken();
+				if (word_set.containsKey(word)) {
+					word_set.put(word, word_set.get(word) + 1);
+				} else {
+					word_set.put(word, 1);
+				}
+			}
+			for (Map.Entry<String, Integer> entry : word_set.entrySet()) {
+				count.set(entry.getValue());
+				context.write(new Text(entry.getKey()), count);
+
+			}
 		}
 	}
 
@@ -62,97 +71,106 @@ public class CORPairs extends Configured implements Tool {
 	private static class CORReducer1 extends
 			Reducer<Text, IntWritable, Text, IntWritable> {
 		@Override
-		public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
-			/*
+		public void reduce(Text key, Iterable<IntWritable> values, Context context)
+				throws IOException, InterruptedException {
+				/*
 			 * TODO: Your implementation goes here.
 			 */
-		}
-	}
-
-
-	/*
-	 * TODO: Write your second-pass Mapper here.
-	 */
-	public static class CORPairsMapper2 extends Mapper<LongWritable, Text, PairOfStrings, IntWritable> {
-		@Override
-		protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
-			// Please use this tokenizer! DO NOT implement a tokenizer by yourself!
-			StringTokenizer doc_tokenizer = new StringTokenizer(value.toString().replaceAll("[^a-z A-Z]", " "));
-			/*
-			 * TODO: Your implementation goes here.
-			 */
-		}
-	}
-
-	/*
-	 * TODO: Write your second-pass Combiner here.
-	 */
-	private static class CORPairsCombiner2 extends Reducer<PairOfStrings, IntWritable, PairOfStrings, IntWritable> {
-		@Override
-		protected void reduce(PairOfStrings key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
-			/*
-			 * TODO: Your implementation goes here.
-			 */
-		}
-	}
-
-	/*
-	 * TODO: Write your second-pass Reducer here.
-	 */
-	public static class CORPairsReducer2 extends Reducer<PairOfStrings, IntWritable, PairOfStrings, DoubleWritable> {
-		private final static Map<String, Integer> word_total_map = new HashMap<String, Integer>();
-
-		/*
-		 * Preload the middle result file.
-		 * In the middle result file, each line contains a word and its frequency Freq(A), seperated by "\t"
-		 */
-		@Override
-		protected void setup(Context context) throws IOException, InterruptedException {
-			Path middle_result_path = new Path("mid/part-r-00000");
-			Configuration middle_conf = new Configuration();
-			try {
-				FileSystem fs = FileSystem.get(URI.create(middle_result_path.toString()), middle_conf);
-
-				if (!fs.exists(middle_result_path)) {
-					throw new IOException(middle_result_path.toString() + "not exist!");
-				}
-
-				FSDataInputStream in = fs.open(middle_result_path);
-				InputStreamReader inStream = new InputStreamReader(in);
-				BufferedReader reader = new BufferedReader(inStream);
-
-				LOG.info("reading...");
-				String line = reader.readLine();
-				String[] line_terms;
-				while (line != null) {
-					line_terms = line.split("\t");
-					word_total_map.put(line_terms[0], Integer.valueOf(line_terms[1]));
-					LOG.info("read one line!");
-					line = reader.readLine();
-				}
-				reader.close();
-				LOG.info("finished！");
-			} catch (Exception e) {
-				System.out.println(e.getMessage());
+			int sum = 0;
+			for (IntWritable value : values) {
+				sum += value.get();
 			}
-		}
-
-		/*
-		 * TODO: write your second-pass Reducer here.
-		 */
-		@Override
-		protected void reduce(PairOfStrings key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
-			/*
-			 * TODO: Your implementation goes here.
-			 */
+			context.write(key, new IntWritable(sum));
 		}
 	}
 
-	private static final class MyPartitioner extends Partitioner<PairOfStrings, FloatWritable> {
-		@Override
-		public int getPartition(PairOfStrings key, FloatWritable value, int numReduceTasks) {
-			return (key.getLeftElement().hashCode() & Integer.MAX_VALUE) % numReduceTasks;
+/*
+ * TODO: Write your second-pass Mapper here.
+ */
+public static class CORPairsMapper2 extends Mapper<LongWritable, Text, PairOfStrings, IntWritable> {
+	@Override
+	protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+		// Please use this tokenizer! DO NOT implement a tokenizer by yourself!
+		StringTokenizer doc_tokenizer = new StringTokenizer(value.toString().replaceAll("[^a-z A-Z]", " "));
+		/*
+		 * TODO: Your implementation goes here.
+		 */
+	}
+}
+
+/*
+ * TODO: Write your second-pass Combiner here.
+ */
+private static class CORPairsCombiner2 extends Reducer<PairOfStrings, IntWritable, PairOfStrings, IntWritable> {
+	@Override
+	protected void reduce(PairOfStrings key, Iterable<IntWritable> values, Context context)
+			throws IOException, InterruptedException {
+		/*
+		 * TODO: Your implementation goes here.
+		 */
+	}
+}
+
+/*
+ * TODO: Write your second-pass Reducer here.
+ */
+public static class CORPairsReducer2 extends Reducer<PairOfStrings, IntWritable, PairOfStrings, DoubleWritable> {
+	private final static Map<String, Integer> word_total_map = new HashMap<String, Integer>();
+
+	/*
+	 * Preload the middle result file.
+	 * In the middle result file, each line contains a word and its frequency
+	 * Freq(A), seperated by "\t"
+	 */
+	@Override
+	protected void setup(Context context) throws IOException, InterruptedException {
+		Path middle_result_path = new Path("mid/part-r-00000");
+		Configuration middle_conf = new Configuration();
+		try {
+			FileSystem fs = FileSystem.get(URI.create(middle_result_path.toString()), middle_conf);
+
+			if (!fs.exists(middle_result_path)) {
+				throw new IOException(middle_result_path.toString() + "not exist!");
+			}
+
+			FSDataInputStream in = fs.open(middle_result_path);
+			InputStreamReader inStream = new InputStreamReader(in);
+			BufferedReader reader = new BufferedReader(inStream);
+
+			LOG.info("reading...");
+			String line = reader.readLine();
+			String[] line_terms;
+			while (line != null) {
+				line_terms = line.split("\t");
+				word_total_map.put(line_terms[0], Integer.valueOf(line_terms[1]));
+				LOG.info("read one line!");
+				line = reader.readLine();
+			}
+			reader.close();
+			LOG.info("finished！");
+		} catch (Exception e) {
+			System.out.println(e.getMessage());
 		}
+	}
+
+	/*
+	 * TODO: write your second-pass Reducer here.
+	 */
+	@Override
+	protected void reduce(PairOfStrings key, Iterable<IntWritable> values, Context context)
+			throws IOException, InterruptedException {
+		/*
+		 * TODO: Your implementation goes here.
+		 */
+	}
+}
+
+private static final class MyPartitioner extends Partitioner<PairOfStrings, FloatWritable> {
+	@Override
+	public int getPartition(PairOfStrings key, FloatWritable value, int numReduceTasks) {
+		return (key.getLeftElement().hashCode() & Integer.MAX_VALUE) % numReduceTasks;
+	}
+
 	}
 
 	/**
@@ -236,13 +254,12 @@ public class CORPairs extends Configured implements Tool {
 		job1.waitForCompletion(true);
 		LOG.info("Job 1 Finished in " + (System.currentTimeMillis() - startTime)
 				/ 1000.0 + " seconds");
-
+	
 		// Setup for the second-pass MapReduce
 
 		// Delete the output directory if it exists already.
 		Path outputDir = new Path(outputPath);
 		FileSystem.get(conf1).delete(outputDir, true);
-
 
 		Configuration conf2 = new Configuration();
 		Job job2 = Job.getInstance(conf2, "Secondpass");
@@ -265,7 +282,6 @@ public class CORPairs extends Configured implements Tool {
 		job2.waitForCompletion(true);
 		LOG.info("Job 2 Finished in " + (System.currentTimeMillis() - startTime)
 				/ 1000.0 + " seconds");
-
 		return 0;
 	}
 
